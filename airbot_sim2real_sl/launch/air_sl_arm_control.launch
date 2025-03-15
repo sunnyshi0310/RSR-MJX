@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="airbot_sim2real_sl" type="sim2real_sl_control_node.py" name="airbot_sl_control_node" output="screen" />
+  <node pkg="airbot_sim2real_sl" type="marker_pose_publisher.py" name="marker_node" output="screen" />
+</launch>
