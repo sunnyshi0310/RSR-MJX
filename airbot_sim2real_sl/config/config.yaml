@@ -1,0 +1,98 @@
+device: &device 'cuda' 
+seed: &seed 0
+bounds_min: &bounds_min [-1, 0.7, 0.0]  
+bounds_max: &bounds_max [0.5, 1.1, 1.1]   
+path: &path 'ReKepImp-main'
+instrinsics: &instrinsics [631.3515625, 0, 626.600891113281, 
+                           0, 630.687866210938, 370.291473388672, 
+                           0, 0, 1]
+
+
+distortions: &distortions [-0.0550069771707058, 0.0681830942630768, -0.000741528230719268, 0.000695949769578874, -0.0215765833854675]
+
+tag_length: &tag_length 0.04  
+tag_idx: &tag_idx 0            
+
+realsense:
+  instrinsics: *instrinsics     
+  distortions: *distortions      
+  height: 720                   
+  width: 1280                   
+  fps: 30                          
+  max_queue_size: 1             
+  tag_length: *tag_length       
+  extrinsic_calibrator:         
+    tag_length: *tag_length    
+    tag_idx: *tag_idx           
+    tag_family: 'DICT_APRILTAG_16H5'  
+
+mask_tracker:
+  seed: *seed
+  num_objects: 5
+  path: *path
+  device: *device
+  max_mask_ratio: 0.3
+  min_mask_ratio: 0.001
+  # SAM params
+  points_per_side: 64
+  crop_n_layers: 1
+  crop_n_points_downscale_factor: 1.0
+  bounds_min: *bounds_min
+  bounds_max: *bounds_max
+  max_overlap_ratio: 0.5
+  max_queue_size: 3 
+
+keypoint_tracker:
+  num_candidates_per_mask: 4
+  min_dist_bt_keypoints: 0.05
+  max_mask_ratio: 1
+  device: *device
+  bounds_min: *bounds_min
+  bounds_max: *bounds_max
+  seed: *seed
+  max_queue_size: 3
+
+enviroment:
+  bounds_min: *bounds_min
+  bounds_max: *bounds_max
+  interpolate_pos_step_size: 0.01
+  interpolate_rot_step_size: 0.01
+  w2a: 
+    - [0.9994551, -0.01450361, -0.02965028, 0.58004867]
+    - [0.01355799, 0.99940074, -0.03184862, 0.14271253]
+    - [0.03009443, 0.03142927, 0.99905281, 0.02302165]
+    - [0.0, 0.0, 0.0, 1.0]
+
+subgoal_solver:
+  bounds_min: *bounds_min
+  bounds_max: *bounds_max
+  sampling_maxfun: 50000
+  max_collision_points: 60
+  constraint_tolerance: 0.0001
+  minimizer_options:
+    maxiter: 2000
+
+main:
+  interpolate_pos_step_size: 0.05 
+  interpolate_rot_step_size: 0.34
+  grasp_depth: 0.01
+  constraint_tolerance: 0.10
+  bounds_min: *bounds_min
+  bounds_max: *bounds_max
+  sdf_voxel_size: 0.01
+  vlm_camera: 0
+  action_steps_per_iter: 5
+  seed: *seed
+
+path_solver:
+  opt_pos_step_size: 0.20 
+  opt_rot_step_size: 0.78  
+  opt_interpolate_pos_step_size: 0.05 
+  opt_interpolate_rot_step_size: 0.34
+  max_collision_points: 60
+  sampling_maxfun: 50000
+  bounds_min: *bounds_min
+  bounds_max: *bounds_max
+  constraint_tolerance: 0.0001
+  minimizer_options:
+    maxiter: 2000

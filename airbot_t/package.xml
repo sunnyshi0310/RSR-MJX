@@ -1,0 +1,16 @@
+<package format="2">
+  <name>airbot_t</name>
+  <version>0.0.1</version>
+  <description>Sim2Real control for a robotic arm using a pre-trained RL policy.</description>
+  <maintainer email="wangshiyu349@163.com">Wang Shiyu</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+
+</package>
