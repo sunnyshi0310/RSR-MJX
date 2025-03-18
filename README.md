@@ -34,4 +34,13 @@ pip install -r requirements.txt
 ## Usage
 ### Tune your environmental parameters in MJX with real-world data
 
-### 
+## Usage for ppo_train
+In ```train.py```, import AirbotPlayBase from ```cube_env```or```T_shape_env``` and select the corresponding mjcf file in the those env.
+
+If you want to start training base on the previous policy network, set a reasonable ```ckpt_path_restart``` path, otherwise comment it out in the ```train_fn```.
+
+Please set up other paths reasonably, such as:```ckpt_path, image_path, model_path, vedio_folder```
+
+If you're having trouble with ```nan```, you can try uncommenting: ```jax config``` (especially in T_shape task)
+
+You can try modifying the hyperparameters to achieve better training results, such as:```num_timesteps, episode_length, num_minibatches, discounting, learning_rate, num_envs, batch_size```
