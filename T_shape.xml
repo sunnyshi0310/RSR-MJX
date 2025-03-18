@@ -17,11 +17,6 @@
     <geom name="ground" type="plane" pos="0 0 0" size="3 3 0.1" material="grid" solimp=".9 .95 .001" solref='-10000 -1000'  contype="3" conaffinity="3" />
   </worldbody>
 
-  <!-- <option integrator="RK4" solver="Newton" /> -->
-  <!-- <option timestep="0.001" iterations="8" ls_iterations="8" integrator="implicitfast">
-    <flag eulerdamp="disable"/>
-  </option> -->
-  <!-- <option iterations="10" timestep="0.00025" gravity="0 0 -9.81"/> -->
   <option timestep="0.00025" iterations="8" integrator="implicitfast" gravity="0 0 -9.81"/>
   <contact>
     <exclude body1='arm_base' body2='link2'/>
@@ -36,7 +31,6 @@
   </contact>
 
   <compiler angle="radian" inertiafromgeom="true"/>
-  <!-- <compiler angle="radian" inertiafromgeom="auto" /> -->
   <size njmax="10000" nconmax="10000"/>
 
   <tendon>
@@ -46,9 +40,7 @@
     </fixed>
   </tendon> 
   <default>
-    <!-- <default class="arm_visual">
-      <geom contype="1" conaffinity="0" condim="4"/>
-    </default> -->
+
     <geom contype="0" conaffinity="0" condim="4"/>
     <default class='arm'>
       <default class='joint1'>
@@ -185,10 +177,10 @@
     <position name="joint1" ctrllimited="true" ctrlrange="-3.14 2.09"  joint="joint1" kp="1000" user="1" forcelimited="true" forcerange="-300 300"/>
     <position name="joint2" ctrllimited="true" ctrlrange="-2.96 0.17"  joint="joint2" kp="1000" user="1" forcelimited="true" forcerange="-300 300"/>
     <position name="joint3" ctrllimited="true" ctrlrange="-0.087 3.14" joint="joint3" kp="1000" user="1" forcelimited="true" forcerange="-300 300"/>
-    <position name="joint4" ctrllimited="true" ctrlrange="-2.96 2.96"  joint="joint4" kp="350" user="1" forcelimited="true" forcerange="-300 300"/>
+    <!-- <position name="joint4" ctrllimited="true" ctrlrange="-2.96 2.96"  joint="joint4" kp="350" user="1" forcelimited="true" forcerange="-300 300"/> -->
     <position name="joint5" ctrllimited="true" ctrlrange="-1.74 1.74"  joint="joint5" kp="350" user="1" forcelimited="true" forcerange="-300 300"/>
     <position name="joint6" ctrllimited="true" ctrlrange="-3.14 3.14"  joint="joint6" kp="100" user="1" forcelimited="true" forcerange="-300 300"/>
-    <position name='gripper' tendon='gripper_gear' ctrllimited="true" ctrlrange="0. 1." kp="3" user="1" forcelimited="true" forcerange="-1 1"/>
+    <!-- <position name='gripper' tendon='gripper_gear' ctrllimited="true" ctrlrange="0. 1." kp="3" user="1" forcelimited="true" forcerange="-1 1"/> -->
   </actuator>
 
 </mujoco>

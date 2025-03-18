@@ -17,11 +17,6 @@
     <geom name="ground" type="plane" pos="0 0 0" size="3 3 0.1" material="grid" solimp=".9 .95 .001" solref='-10000 -1000'  contype="3" conaffinity="3" />
   </worldbody>
 
-  <!-- <option integrator="RK4" solver="Newton" /> -->
-  <!-- <option timestep="0.001" iterations="8" ls_iterations="8" integrator="implicitfast">
-    <flag eulerdamp="disable"/>
-  </option> -->
-  <!-- <option iterations="10" timestep="0.00025"/> -->
   <option timestep="0.0025" iterations="20" integrator="implicitfast" gravity="0 0 -9.81"/>
   <contact>
     <exclude body1='arm_base' body2='link2'/>
@@ -157,13 +152,6 @@
       <geom size="0.02 0.02 0.385" pos="-0.56  0.28 0.385" type="box" contype="0" conaffinity="0" rgba="0.8 0.8 0.8 1" />
     </body>
 
-    <!-- <body name="cube_for_push" pos="0.42 0 0.85">
-      <joint type="free" frictionloss="0.0001" />
-      <inertial pos="0 0 0" mass="0.5" />
-      <geom type="box" name="box" size="0.04 0.04 0.04" condim="4"
-       friction="1 0.03 0.003" rgba="1 1 1 1" contype="3" conaffinity="3" solref="0.01 1"/>
-    </body> -->
-
     <body name="target_pos" pos="0.4664427 0.10352592 0.81999997">
       <geom type="box" name="target" size="0.04 0.04 0.04" rgba="0 0 1 1" contype="0" conaffinity="2" mass="0"/>
       <inertial pos="0 0 0" mass="0.5" diaginertia="0.0005333 0.0005333 0.0005333"/>
@@ -187,7 +175,7 @@
     <position name="joint1" ctrllimited="true" ctrlrange="-3.14 2.09"  joint="joint1" kp="1000" user="1" forcelimited="true" forcerange="-300 300"/>
     <position name="joint2" ctrllimited="true" ctrlrange="-2.96 0.17"  joint="joint2" kp="1000" user="1" forcelimited="true" forcerange="-300 300"/>
     <position name="joint3" ctrllimited="true" ctrlrange="-0.087 3.14" joint="joint3" kp="1000" user="1" forcelimited="true" forcerange="-300 300"/>
-    <position name="joint4" ctrllimited="true" ctrlrange="-2.96 2.96"  joint="joint4" kp="350" user="1" forcelimited="true" forcerange="-300 300"/>
+    <!-- <position name="joint4" ctrllimited="true" ctrlrange="-2.96 2.96"  joint="joint4" kp="350" user="1" forcelimited="true" forcerange="-300 300"/> -->
     <position name="joint5" ctrllimited="true" ctrlrange="-1.74 1.74"  joint="joint5" kp="350" user="1" forcelimited="true" forcerange="-300 300"/>
     <position name="joint6" ctrllimited="true" ctrlrange="-3.14 3.14"  joint="joint6" kp="100" user="1" forcelimited="true" forcerange="-300 300"/>
     <!-- <position name='gripper' tendon='gripper_gear' ctrllimited="true" ctrlrange="0. 1." kp="3" user="1" forcelimited="true" forcerange="-1 1"/> -->
