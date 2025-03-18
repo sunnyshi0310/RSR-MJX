@@ -90,7 +90,6 @@ eval_env = envs.get_environment(env_name)
 
 jit_reset = jax.jit(eval_env.reset)
 jit_step = jax.jit(eval_env.step)
-# initialize the state
 rng = jax.random.PRNGKey(0)
 state = jit_reset(rng)
 rollout = [state.pipeline_state]
