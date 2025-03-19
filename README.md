@@ -44,3 +44,22 @@ Please set up other paths reasonably, such as:```ckpt_path, image_path, model_pa
 If you're having trouble with ```nan```, you can try uncommenting: ```jax config``` (especially in T_shape task)
 
 You can try modifying the hyperparameters to achieve better training results, such as:```num_timesteps, episode_length, num_minibatches, discounting, learning_rate, num_envs, batch_size```
+
+## Usage for real_robot_inference
+
+The folders `airbot_sim2real_sl` and `airbot_t` correspond to experimental tasks involving cubic objects and T-shaped objects, respectively. Both are structured as standard ROS packages.
+
+### Core Components (airbot_sim2real_sl Implementation)
+**`sim2real_sl_control_node.py`**  
+  Serves as the main control node for the system.
+
+**`marker_pose_publisher.py`**  
+  Implements the node responsible for activating and managing the Intel RealSense depth camera.
+
+**`ppo_inference.py`**  
+  Handles inference execution of pre-trained reinforcement learning policies.
+
+**`real_robot_interface.py`**  
+  Manages hardware interaction with the Airbot Play robotic arm, including:  
+  - Interface invocation for robotic manipulation  
+  - Real-world state monitoring through sensor data acquisition from physical environments
