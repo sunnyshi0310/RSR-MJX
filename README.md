@@ -1,7 +1,5 @@
 # RSR-MJX
 
-This repository contains the codebase for the paper "RSR: An Real-Sim-Real (RSR) Loop Framework for Generalizable Robotic Policy Transfer with Differentiable Simulation" submitted to IROS2025. In this work, we propose a framework that leverages real-world data to adjust the parameters of the differentiable simulator - MJX. 
-
 ## Setup Instructions
 
 ### 1. Create an environment
