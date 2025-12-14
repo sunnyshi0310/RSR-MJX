@@ -1,0 +1,231 @@
+<mujoco model="go2 feet only">
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+
+  <option iterations="1" ls_iterations="5" timestep="0.004" integrator="Euler">
+    <flag eulerdamp="disable"/>
+  </option>
+
+  <default>
+    <default class="go2">
+      <!-- 全局禁用碰撞，仅足部启用 -->
+      <geom condim="1" contype="0" conaffinity="0"/>
+      <joint axis="0 1 0" damping="0.5" armature="0.005"/>
+      <position forcerange="-24 24" inheritrange="1" kp="35"/>
+      
+      <default class="abduction">
+        <joint axis="1 0 0" range="-1.0472 1.0472" frictionloss="0.3"/>
+      </default>
+      <default class="hip">
+        <joint range="-1.5708 3.4907" frictionloss="0.3"/>
+      </default>
+      <default class="knee">
+        <joint range="-2.7227 -0.83776" frictionloss="1.0"/>
+        <position forcerange="-35.55 35.55"/>
+      </default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2" material="dark"/>
+      </default>
+      <default class="collision">
+        <geom group="3" type="capsule"/>
+        <default class="foot">
+          <!-- 仅足部启用与地面碰撞 -->
+          <geom type="sphere" size="0.023" pos="0 0 -0.213" solimp="0.9 .95 0.023" contype="0" conaffinity="1"/>
+        </default>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <material name="dark" rgba="0.2 0.2 0.2 1"/>
+    <material name="metal" rgba=".9 .95 .95 1"/>
+    <material name="black" rgba="0 0 0 1"/>
+    <material name="white" rgba="1 1 1 1"/>
+    <material name="gray" rgba="0.671705 0.692426 0.774270 1"/>
+
+    <mesh file="base_0.obj"/>
+    <mesh file="base_1.obj"/>
+    <mesh file="base_2.obj"/>
+    <mesh file="base_3.obj"/>
+    <mesh file="base_4.obj"/>
+    <mesh file="hip_0.obj"/>
+    <mesh file="hip_1.obj"/>
+    <mesh file="thigh_0.obj"/>
+    <mesh file="thigh_1.obj"/>
+    <mesh file="thigh_mirror_0.obj"/>
+    <mesh file="thigh_mirror_1.obj"/>
+    <mesh file="calf_0.obj"/>
+    <mesh file="calf_1.obj"/>
+    <mesh file="calf_mirror_0.obj"/>
+    <mesh file="calf_mirror_1.obj"/>
+    <mesh file="foot.obj"/>
+  </asset>
+
+  <worldbody>
+    <light name="spotlight" mode="targetbodycom" target="trunk" pos="3 0 4"/>
+    <!-- 关键修改：body name从"base"改为"trunk"以匹配训练代码 -->
+    <body name="trunk" pos="0 0 0.445" childclass="go2">
+      <camera name="track" pos="0.846 -1.3 0.316" xyaxes="0.866 0.500 0.000 -0.171 0.296 0.940" mode="trackcom"/>
+      <camera name="top" pos="-1 0 1" xyaxes="0 -1 0 0.7 0 0.7" mode="trackcom"/>
+      <camera name="side" pos="0 -1 .3" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
+      <camera name="back" pos="-1 0 .3" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
+      <site name="head" pos="0.3 0 0" rgba="1 0 0 1" size="0.02" group="5"/>
+      <inertial pos="0.021112 0 -0.005366" quat="-0.000543471 0.713435 -0.00173769 0.700719" mass="6.921"
+        diaginertia="0.107027 0.0980771 0.0244531"/>
+      <freejoint/>
+      <geom mesh="base_0" material="black" class="visual"/>
+      <geom mesh="base_1" material="black" class="visual"/>
+      <geom mesh="base_2" material="black" class="visual"/>
+      <geom mesh="base_3" material="white" class="visual"/>
+      <geom mesh="base_4" material="gray" class="visual"/>
+      <geom size="0.125 0.04675 0.057" type="box" class="collision"/>
+      <!-- 关键：imu site必须存在 -->
+      <site name="imu" pos="-0.02557 0 0.04232" group="5"/>
+      
+      <!-- FR: 右前腿 -->
+      <body name="FR_hip" pos="0.1934 -0.0465 0">
+        <inertial pos="-0.0054 -0.00194 -0.000105" quat="0.498237 0.505462 0.499245 0.497014" mass="0.678"
+          diaginertia="0.00088403 0.000596003 0.000479967"/>
+        <joint name="FR_hip_joint" class="abduction"/>
+        <geom mesh="hip_0" material="metal" class="visual" quat="4.63268e-05 1 0 0"/>
+        <geom mesh="hip_1" material="gray" class="visual" quat="4.63268e-05 1 0 0"/>
+        <body name="FR_thigh" pos="0 -0.0955 0">
+          <inertial pos="-0.00374 0.0223 -0.0327" quat="0.551623 -0.0200632 0.0847635 0.829533" mass="1.152"
+            diaginertia="0.00594973 0.00584149 0.000878787"/>
+          <joint name="FR_thigh_joint" class="hip"/>
+          <geom mesh="thigh_mirror_0" material="metal" class="visual"/>
+          <geom mesh="thigh_mirror_1" material="gray" class="visual"/>
+          <body name="FR_calf" pos="0 0 -0.213">
+            <inertial pos="0.00629595 0.000622121 -0.141417" quat="0.703508 -0.00450087 0.00154099 0.710672"
+              mass="0.241352" diaginertia="0.0014901 0.00146356 5.31397e-05"/>
+            <joint name="FR_calf_joint" class="knee"/>
+            <geom mesh="calf_mirror_0" material="gray" class="visual"/>
+            <geom mesh="calf_mirror_1" material="black" class="visual"/>
+            <geom pos="0 0 -0.213" mesh="foot" class="visual" material="black"/>
+            <geom name="FR" class="foot"/>
+            <!-- 关键：足部site名称必须为"FR" -->
+            <site name="FR" pos="0 0 -0.213" type="sphere" size="0.023" group="5"/>
+          </body>
+        </body>
+      </body>
+      
+      <!-- FL: 左前腿 -->
+      <body name="FL_hip" pos="0.1934 0.0465 0">
+        <inertial pos="-0.0054 0.00194 -0.000105" quat="0.497014 0.499245 0.505462 0.498237" mass="0.678"
+          diaginertia="0.00088403 0.000596003 0.000479967"/>
+        <joint name="FL_hip_joint" class="abduction"/>
+        <geom mesh="hip_0" material="metal" class="visual"/>
+        <geom mesh="hip_1" material="gray" class="visual"/>
+        <body name="FL_thigh" pos="0 0.0955 0">
+          <inertial pos="-0.00374 -0.0223 -0.0327" quat="0.829533 0.0847635 -0.0200632 0.551623" mass="1.152"
+            diaginertia="0.00594973 0.00584149 0.000878787"/>
+          <joint name="FL_thigh_joint" class="hip"/>
+          <geom mesh="thigh_0" material="metal" class="visual"/>
+          <geom mesh="thigh_1" material="gray" class="visual"/>
+          <body name="FL_calf" pos="0 0 -0.213">
+            <inertial pos="0.00629595 -0.000622121 -0.141417" quat="0.710672 0.00154099 -0.00450087 0.703508"
+              mass="0.241352" diaginertia="0.0014901 0.00146356 5.31397e-05"/>
+            <joint name="FL_calf_joint" class="knee"/>
+            <geom mesh="calf_0" material="gray" class="visual"/>
+            <geom mesh="calf_1" material="black" class="visual"/>
+            <geom pos="0 0 -0.213" mesh="foot" class="visual" material="black"/>
+            <geom name="FL" class="foot"/>
+            <site name="FL" pos="0 0 -0.213" type="sphere" size="0.023" group="5"/>
+          </body>
+        </body>
+      </body>
+      
+      <!-- RR: 右后腿 -->
+      <body name="RR_hip" pos="-0.1934 -0.0465 0">
+        <inertial pos="0.0054 -0.00194 -0.000105" quat="0.499245 0.497014 0.498237 0.505462" mass="0.678"
+          diaginertia="0.00088403 0.000596003 0.000479967"/>
+        <joint name="RR_hip_joint" class="abduction"/>
+        <geom mesh="hip_0" material="metal" class="visual" quat="2.14617e-09 4.63268e-05 4.63268e-05 -1"/>
+        <geom mesh="hip_1" material="gray" class="visual" quat="2.14617e-09 4.63268e-05 4.63268e-05 -1"/>
+        <body name="RR_thigh" pos="0 -0.0955 0">
+          <inertial pos="-0.00374 0.0223 -0.0327" quat="0.551623 -0.0200632 0.0847635 0.829533" mass="1.152"
+            diaginertia="0.00594973 0.00584149 0.000878787"/>
+          <joint name="RR_thigh_joint" class="hip"/>
+          <geom mesh="thigh_mirror_0" material="metal" class="visual"/>
+          <geom mesh="thigh_mirror_1" material="gray" class="visual"/>
+          <body name="RR_calf" pos="0 0 -0.213">
+            <inertial pos="0.00629595 0.000622121 -0.141417" quat="0.703508 -0.00450087 0.00154099 0.710672"
+              mass="0.241352" diaginertia="0.0014901 0.00146356 5.31397e-05"/>
+            <joint name="RR_calf_joint" class="knee"/>
+            <geom mesh="calf_mirror_0" material="gray" class="visual"/>
+            <geom mesh="calf_mirror_1" material="black" class="visual"/>
+            <geom pos="0 0 -0.213" mesh="foot" class="visual" material="black"/>
+            <geom name="RR" class="foot"/>
+            <site name="RR" pos="0 0 -0.213" type="sphere" size="0.023" group="5"/>
+          </body>
+        </body>
+      </body>
+      
+      <!-- RL: 左后腿 -->
+      <body name="RL_hip" pos="-0.1934 0.0465 0">
+        <inertial pos="0.0054 0.00194 -0.000105" quat="0.505462 0.498237 0.497014 0.499245" mass="0.678"
+          diaginertia="0.00088403 0.000596003 0.000479967"/>
+        <joint name="RL_hip_joint" class="abduction"/>
+        <geom mesh="hip_0" material="metal" class="visual" quat="4.63268e-05 0 1 0"/>
+        <geom mesh="hip_1" material="gray" class="visual" quat="4.63268e-05 0 1 0"/>
+        <body name="RL_thigh" pos="0 0.0955 0">
+          <inertial pos="-0.00374 -0.0223 -0.0327" quat="0.829533 0.0847635 -0.0200632 0.551623" mass="1.152"
+            diaginertia="0.00594973 0.00584149 0.000878787"/>
+          <joint name="RL_thigh_joint" class="hip"/>
+          <geom mesh="thigh_0" material="metal" class="visual"/>
+          <geom mesh="thigh_1" material="gray" class="visual"/>
+          <body name="RL_calf" pos="0 0 -0.213">
+            <inertial pos="0.00629595 -0.000622121 -0.141417" quat="0.710672 0.00154099 -0.00450087 0.703508"
+              mass="0.241352" diaginertia="0.0014901 0.00146356 5.31397e-05"/>
+            <joint name="RL_calf_joint" class="knee"/>
+            <geom mesh="calf_0" material="gray" class="visual"/>
+            <geom mesh="calf_1" material="black" class="visual"/>
+            <geom pos="0 0 -0.213" mesh="foot" class="visual" material="black"/>
+            <geom name="RL" class="foot"/>
+            <site name="RL" pos="0 0 -0.213" type="sphere" size="0.023" group="5"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position class="abduction" name="FR_hip" joint="FR_hip_joint"/>
+    <position class="hip" name="FR_thigh" joint="FR_thigh_joint"/>
+    <position class="knee" name="FR_calf" joint="FR_calf_joint"/>
+    <position class="abduction" name="FL_hip" joint="FL_hip_joint"/>
+    <position class="hip" name="FL_thigh" joint="FL_thigh_joint"/>
+    <position class="knee" name="FL_calf" joint="FL_calf_joint"/>
+    <position class="abduction" name="RR_hip" joint="RR_hip_joint"/>
+    <position class="hip" name="RR_thigh" joint="RR_thigh_joint"/>
+    <position class="knee" name="RR_calf" joint="RR_calf_joint"/>
+    <position class="abduction" name="RL_hip" joint="RL_hip_joint"/>
+    <position class="hip" name="RL_thigh" joint="RL_thigh_joint"/>
+    <position class="knee" name="RL_calf" joint="RL_calf_joint"/>
+  </actuator>
+
+  <!-- 关键：所有传感器名称必须与go1_constants.py中定义的一致 -->
+  <sensor>
+    <!-- 必需传感器 -->
+    <gyro site="imu" name="gyro"/>
+    <velocimeter site="imu" name="local_linvel"/>
+    <accelerometer site="imu" name="accelerometer"/>
+    <framepos objtype="site" objname="imu" name="position"/>
+    <framezaxis objtype="site" objname="imu" name="upvector"/>
+    <framexaxis objtype="site" objname="imu" name="forwardvector"/>
+    <framelinvel objtype="site" objname="imu" name="global_linvel"/>
+    <frameangvel objtype="site" objname="imu" name="global_angvel"/>
+    <framequat objtype="site" objname="imu" name="orientation"/>
+    
+    <!-- 足部线速度传感器（训练代码必需） -->
+    <framelinvel objtype="site" objname="FR" name="FR_global_linvel"/>
+    <framelinvel objtype="site" objname="FL" name="FL_global_linvel"/>
+    <framelinvel objtype="site" objname="RR" name="RR_global_linvel"/>
+    <framelinvel objtype="site" objname="RL" name="RL_global_linvel"/>
+    
+    <!-- 足部位置传感器 -->
+    <framepos objtype="site" objname="FR" name="FR_pos" reftype="site" refname="imu"/>
+    <framepos objtype="site" objname="FL" name="FL_pos" reftype="site" refname="imu"/>
+    <framepos objtype="site" objname="RR" name="RR_pos" reftype="site" refname="imu"/>
+    <framepos objtype="site" objname="RL" name="RL_pos" reftype="site" refname="imu"/>
+  </sensor>
+</mujoco>
