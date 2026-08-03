@@ -1,7 +1,5 @@
 """Core classes for MuJoCo Playground."""
 import abc
-import subprocess
-import sys
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 from etils import epath
 from flax import struct
@@ -11,66 +9,13 @@ import mujoco
 from mujoco import mjx
 import numpy as np
 import tqdm
+
 ROOT_PATH = epath.Path(__file__).parent
+# Go2 assets are bundled under ``locomotion/go2/xmls`` and do not require
+# downloading ``mujoco_menagerie``.
 EXTERNAL_DEPS_PATH = epath.Path(__file__).parent.parent / "external_deps"
 MENAGERIE_PATH = EXTERNAL_DEPS_PATH / "mujoco_menagerie"
-MENAGERIE_COMMIT_SHA = "14ceccf557cc47240202f2354d684eca58ff8de4"
-def _clone_with_progress(
-    repo_url: str, target_path: str, commit_sha: str
-) -> None:
-  """Clone a git repo with progress bar."""
-  process = subprocess.Popen(
-      ["git", "clone", "--progress", repo_url, target_path],
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-      universal_newlines=True,
-  )
-  with tqdm.tqdm(
-      desc="Cloning mujoco_menagerie",
-      bar_format="{desc}: {bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-  ) as pbar:
-    pbar.total = 100
-    current = 0
-    while True:
-      output = process.stderr.readline()
-      if not output and process.poll() is not None:
-        break
-      if output:
-        if "Receiving objects:" in output:
-          try:
-            percent = int(output.split("%")[0].split(":")[-1].strip())
-            if percent > current:
-              pbar.update(percent - current)
-              current = percent
-          except (ValueError, IndexError):
-            pass
-    if current < 100:
-      pbar.update(100 - current)
-  if process.returncode != 0:
-    raise subprocess.CalledProcessError(process.returncode, ["git", "clone"])
-  print(f"Checking out commit {commit_sha}")
-  subprocess.run(
-      ["git", "-C", target_path, "checkout", commit_sha],
-      check=True,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-  )
-def ensure_menagerie_exists() -> None:
-  """Ensure mujoco_menagerie exists, downloading it if necessary."""
-  if not MENAGERIE_PATH.exists():
-    print("mujoco_menagerie not found. Downloading...")
-    EXTERNAL_DEPS_PATH.mkdir(exist_ok=True, parents=True)
-    try:
-      _clone_with_progress(
-          "https://github.com/deepmind/mujoco_menagerie.git",
-          str(MENAGERIE_PATH),
-          MENAGERIE_COMMIT_SHA,
-      )
-      print("Successfully downloaded mujoco_menagerie")
-    except subprocess.CalledProcessError as e:
-      print(f"Error downloading mujoco_menagerie: {e}", file=sys.stderr)
-      raise
-ensure_menagerie_exists()
+
 Observation = Union[jax.Array, Mapping[str, jax.Array]]
 ObservationSize = Union[int, Mapping[str, Union[Tuple[int, ...], int]]]
 def update_assets(

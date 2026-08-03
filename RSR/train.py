@@ -96,6 +96,7 @@ def train(
     reward_scaling: float = 1.0,
     clipping_epsilon: float = 0.3,
     gae_lambda: float = 0.95,
+    rsr_loss_scale: float = 1.0,
     deterministic_eval: bool = False,
     network_factory: types.NetworkFactory[
         ppo_networks.PPONetworks
@@ -147,6 +148,7 @@ def train(
     reward_scaling: float scaling for reward
     clipping_epsilon: clipping epsilon for PPO loss
     gae_lambda: General advantage estimation lambda
+    rsr_loss_scale: multiplier for the RSR distribution penalty
     deterministic_eval: whether to run the eval with a deterministic policy
     network_factory: function that generates networks for policy and value
       functions
@@ -252,7 +254,8 @@ def train(
       reward_scaling=reward_scaling,
       gae_lambda=gae_lambda,
       clipping_epsilon=clipping_epsilon,
-      normalize_advantage=normalize_advantage
+      normalize_advantage=normalize_advantage,
+      rsr_loss_scale=rsr_loss_scale,
       )
 
   gradient_update_fn = gradients.gradient_update_fn(

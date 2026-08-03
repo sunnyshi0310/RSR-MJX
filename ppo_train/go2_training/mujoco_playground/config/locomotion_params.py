@@ -27,7 +27,7 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
           value_obs_key="state",
       ),
   )
-  if env_name in ("Go1JoystickFlatTerrain", "Go1JoystickRoughTerrain"):
+  if env_name in ("Go2JoystickFlatTerrain", "Go2JoystickRoughTerrain"):
     rl_config.num_timesteps = 200_000_000
     rl_config.num_evals = 10
     rl_config.num_resets_per_eval = 1
@@ -37,7 +37,7 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
         policy_obs_key="state",
         value_obs_key="privileged_state",
     )
-  elif env_name in ("Go1Handstand", "Go1Footstand"):
+  elif env_name in ("Go2Handstand", "Go2Footstand"):
     rl_config.num_timesteps = 100_000_000
     rl_config.num_evals = 5
     rl_config.network_factory = config_dict.create(
@@ -46,7 +46,7 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
         policy_obs_key="state",
         value_obs_key="privileged_state",
     )
-  elif env_name == "Go1Backflip":
+  elif env_name == "Go2Backflip":
     rl_config.num_timesteps = 200_000_000
     rl_config.num_evals = 10
     rl_config.discounting = 0.95
@@ -56,7 +56,7 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
         policy_obs_key="state",
         value_obs_key="privileged_state",
     )
-  elif env_name == "Go1Getup":
+  elif env_name == "Go2Getup":
     rl_config.num_timesteps = 50_000_000
     rl_config.num_evals = 5
     rl_config.network_factory = config_dict.create(
@@ -120,6 +120,66 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
   else:
     raise ValueError(f"Unsupported env: {env_name}")
   return rl_config
+
+
+def brax_sac_config(env_name: str) -> config_dict.ConfigDict:
+  """Returns tuned Brax SAC config for the given locomotion environment."""
+  env_config = locomotion.get_default_config(env_name)
+  rl_config = config_dict.create(
+      num_timesteps=5_000_000,
+      num_evals=10,
+      reward_scaling=1.0,
+      episode_length=env_config.episode_length,
+      normalize_observations=True,
+      action_repeat=1,
+      discounting=0.97,
+      learning_rate=3e-4,
+      num_envs=1024,
+      num_eval_envs=128,
+      batch_size=256,
+      tau=0.005,
+      min_replay_size=100_000,
+      max_replay_size=1_000_000,
+      grad_updates_per_step=1,
+      policy_obs_key="state",
+      network_factory=config_dict.create(
+          hidden_layer_sizes=(256, 256),
+      ),
+  )
+  if env_name in ("Go2JoystickFlatTerrain", "Go2JoystickRoughTerrain"):
+    rl_config.num_timesteps = 20_000_000
+    rl_config.num_evals = 10
+    rl_config.num_envs = 4096
+    rl_config.batch_size = 512
+    rl_config.min_replay_size = 200_000
+    rl_config.network_factory = config_dict.create(
+        hidden_layer_sizes=(512, 256, 128),
+    )
+  elif env_name in ("Go2Handstand", "Go2Footstand"):
+    rl_config.num_timesteps = 10_000_000
+    rl_config.num_evals = 5
+    rl_config.network_factory = config_dict.create(
+        hidden_layer_sizes=(512, 256, 128),
+    )
+  elif env_name == "Go2Getup":
+    rl_config.num_timesteps = 5_000_000
+    rl_config.num_evals = 5
+    rl_config.network_factory = config_dict.create(
+        hidden_layer_sizes=(512, 256, 128),
+    )
+  elif env_name in (
+      "Go2JoystickFlatTerrain",
+      "Go2JoystickRoughTerrain",
+      "Go2Handstand",
+      "Go2Footstand",
+      "Go2Getup",
+  ):
+    pass
+  else:
+    raise ValueError(f"Unsupported env: {env_name}")
+  return rl_config
+
+
 def rsl_rl_config(env_name: str) -> config_dict.ConfigDict:
   """Returns tuned RSL-RL PPO config for the given environment."""
   rl_config = config_dict.create(
@@ -159,13 +219,13 @@ def rsl_rl_config(env_name: str) -> config_dict.ConfigDict:
       resume_path=None,
   )
   if env_name in (
-      "Go1Getup",
+      "Go2Getup",
       "BerkeleyHumanoidJoystickFlatTerrain",
       "G1Joystick",
-      "Go1JoystickFlatTerrain",
+      "Go2JoystickFlatTerrain",
   ):
     rl_config.max_iterations = 1000
-  if env_name == "Go1JoystickFlatTerrain":
+  if env_name == "Go2JoystickFlatTerrain":
     rl_config.algorithm.learning_rate = 3e-4
     rl_config.algorithm.schedule = "fixed"
   return rl_config

@@ -1,22 +1,4 @@
-"""RSR policy training entry script.
-
-Run from the repository root:
-
-    conda activate mjx
-    python test/rsr_policy_training.py
-
-Place the required aligned datasets under
-``ppo_train/airbot_training/outputs``:
-
-    real_obs.txt          # real observations s_t
-    real_action.txt       # real actions a_t
-    past_sim_obs.txt      # sim observations before env-parameter tuning
-    current_sim_obs.txt   # sim observations after env-parameter tuning
-    obs.txt               # sim observation rollout used for alignment checks
-    actions.txt           # sim action rollout used for alignment checks
-
-All six files are mandatory. Missing files or shape mismatches raise errors.
-"""
+"""RSR-SAC policy training for Go2 locomotion."""
 
 from __future__ import annotations
 
@@ -26,27 +8,26 @@ from datetime import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TEST_DIR = REPO_ROOT / 'test'
-DATA_DIR = REPO_ROOT / 'ppo_train' / 'airbot_training' / 'outputs'
+GO2_TRAINING = REPO_ROOT / 'ppo_train' / 'go2_training'
+DATA_DIR = GO2_TRAINING / 'outputs'
 OUTPUT_DIR = DATA_DIR / 'rsr_training'
 
 # Must run before importing the local ``RSR`` package.
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(TEST_DIR))
+sys.path.insert(0, str(GO2_TRAINING))
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from brax import envs
-from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.agents.sac import networks as sac_networks
 from etils import epath
-from flax.training import orbax_utils
-from orbax import checkpoint as ocp
+from mujoco_playground import registry
+from mujoco_playground import wrapper
+from mujoco_playground.config import locomotion_params
 
 import RSR.rsr_pipeline as rsr_pipeline
-from airbot import AirbotPlayBase
 
+ENV_NAME = 'Go2JoystickFlatTerrain'
 REQUIRED_DATA_FILES = (
     'real_obs.txt',
     'real_action.txt',
@@ -57,14 +38,15 @@ REQUIRED_DATA_FILES = (
 )
 
 # Training options.
-ALGORITHM = 'sac'  # 'ppo' or 'sac'
+ALGORITHM = 'sac'
 MAX_TRANSITIONS = 50
-NUM_TIMESTEPS = 500_000
-NUM_EVALS = 10
-NUM_ENVS = 512
-BATCH_SIZE = 128
-MIN_REPLAY_SIZE = 10_000
-MAX_REPLAY_SIZE = 200_000
+NUM_TIMESTEPS = 50_000
+NUM_EVALS = 2
+NUM_ENVS = 64
+BATCH_SIZE = 64
+MIN_REPLAY_SIZE = 256
+MAX_REPLAY_SIZE = 10_000
+SEED = 0
 
 
 def _require_data_file(filename: str) -> Path:
@@ -197,6 +179,7 @@ def load_rsr_datasets(max_transitions: int):
   print('====== RSR dataset summary ======')
   print(f'data_dir: {DATA_DIR}')
   print(f'transitions: {transition_count}')
+  print(f'obs_dim: {obs_dim}, action_dim: {action_dim}')
   for filename in REQUIRED_DATA_FILES:
     print(f'{filename}: {data_paths[filename]}')
 
@@ -209,88 +192,101 @@ def load_rsr_datasets(max_transitions: int):
   )
 
 
-envs.register_environment('airbot', AirbotPlayBase)
-env = envs.get_environment('airbot')
-
-(
-    past_states,
-    past_actions,
-    past_next_states_real,
-    past_next_states_sim,
-    current_next_states_sim,
-) = load_rsr_datasets(MAX_TRANSITIONS)
-
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-ckpt_path = epath.Path(OUTPUT_DIR / 'checkpoints')
-ckpt_path.mkdir(parents=True, exist_ok=True)
-plot_dir = OUTPUT_DIR / 'plots'
-plot_dir.mkdir(parents=True, exist_ok=True)
+def build_go2_env():
+  """Builds the wrapped Go2 environment used for RSR-SAC training."""
+  sac_params = locomotion_params.brax_sac_config(ENV_NAME)
+  env_cfg = registry.get_default_config(ENV_NAME)
+  env = registry.load(ENV_NAME, config=env_cfg)
+  env = wrapper.SelectObservationWrapper(env, obs_key=sac_params.policy_obs_key)
+  return env, env_cfg, sac_params
 
 
-def policy_params_fn(current_step, make_policy, params):
-  orbax_checkpointer = ocp.PyTreeCheckpointer()
-  save_args = orbax_utils.save_args_from_target(params)
-  path = ckpt_path / f'{current_step}'
-  orbax_checkpointer.save(path, params, force=True, save_args=save_args)
+def main():
+  env, env_cfg, sac_params = build_go2_env()
+  print(f'Environment: {ENV_NAME}')
+  print(f'observation_size: {env.observation_size}, action_size: {env.action_size}')
 
+  (
+      past_states,
+      past_actions,
+      past_next_states_real,
+      past_next_states_sim,
+      current_next_states_sim,
+  ) = load_rsr_datasets(MAX_TRANSITIONS)
 
-x_data = []
-y_data = []
-ydataerr = []
-times = [datetime.now()]
-max_y, min_y = 13000, 0
+  OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+  ckpt_path = epath.Path(OUTPUT_DIR / 'checkpoints')
+  ckpt_path.mkdir(parents=True, exist_ok=True)
+  plot_dir = OUTPUT_DIR / 'plots'
+  plot_dir.mkdir(parents=True, exist_ok=True)
 
-
-def progress_fn(num_steps, metrics):
-  times.append(datetime.now())
-  x_data.append(num_steps)
-  y_data.append(metrics['eval/episode_reward'])
-  ydataerr.append(metrics['eval/episode_reward_std'])
-
-  plt.clf()
-  plt.xlim([0, NUM_TIMESTEPS * 1.25])
-  plt.ylim([min_y, max_y])
-  plt.xlabel('# environment steps')
-  plt.ylabel('reward per episode')
-  plt.title(f'y={y_data[-1]:.3f}')
-  plt.errorbar(x_data, y_data, yerr=ydataerr)
-  plt.savefig(plot_dir / f'push_{num_steps}.png')
-
-
-if ALGORITHM == 'ppo':
-  network_factory = functools.partial(
-      ppo_networks.make_ppo_networks,
-      policy_hidden_layer_sizes=(32, 32, 32, 32),
-      value_hidden_layer_sizes=(32, 32, 32, 32),
+  eval_env = registry.load(ENV_NAME, config=env_cfg)
+  eval_env = wrapper.SelectObservationWrapper(
+      eval_env, obs_key=sac_params.policy_obs_key
   )
-else:
+
+  x_data = []
+  y_data = []
+  ydataerr = []
+  times = [datetime.now()]
+
+  def progress_fn(num_steps, metrics):
+    times.append(datetime.now())
+    x_data.append(num_steps)
+    y_data.append(metrics['eval/episode_reward'])
+    ydataerr.append(metrics['eval/episode_reward_std'])
+
+    plt.clf()
+    plt.xlim([0, NUM_TIMESTEPS * 1.25])
+    if y_data:
+      plt.ylim([min(y_data) * 1.1, max(y_data) * 1.1 + 1e-6])
+    plt.xlabel('# environment steps')
+    plt.ylabel('reward per episode')
+    plt.title(f'y={y_data[-1]:.3f}')
+    plt.errorbar(x_data, y_data, yerr=ydataerr)
+    plt.savefig(plot_dir / f'go2_{num_steps}.png')
+
   network_factory = functools.partial(
       sac_networks.make_sac_networks,
-      hidden_layer_sizes=(32, 32, 32, 32),
+      hidden_layer_sizes=tuple(sac_params.network_factory.hidden_layer_sizes),
   )
 
-make_inference_fn, params = rsr_pipeline.policy_params_training(
-    env=env,
-    algorithm=ALGORITHM,
-    restore_checkpoint_path=None,
-    past_states=past_states,
-    past_actions=past_actions,
-    past_next_states_real=past_next_states_real,
-    past_next_states_sim=past_next_states_sim,
-    current_next_states_sim=current_next_states_sim,
-    num_timesteps=NUM_TIMESTEPS,
-    num_evals=NUM_EVALS,
-    num_envs=NUM_ENVS,
-    batch_size=BATCH_SIZE,
-    min_replay_size=MIN_REPLAY_SIZE,
-    max_replay_size=MAX_REPLAY_SIZE,
-    grad_updates_per_step=1,
-    progress_fn=progress_fn,
-    network_factory=network_factory,
-    policy_params_fn=policy_params_fn,
-    checkpoint_logdir=str(ckpt_path / 'rsr'),
-)
+  make_inference_fn, params = rsr_pipeline.policy_params_training(
+      env=env,
+      algorithm=ALGORITHM,
+      restore_checkpoint_path=None,
+      past_states=past_states,
+      past_actions=past_actions,
+      past_next_states_real=past_next_states_real,
+      past_next_states_sim=past_next_states_sim,
+      current_next_states_sim=current_next_states_sim,
+      num_timesteps=NUM_TIMESTEPS,
+      num_evals=NUM_EVALS,
+      num_envs=NUM_ENVS,
+      batch_size=BATCH_SIZE,
+      episode_length=env_cfg.episode_length,
+      reward_scaling=sac_params.reward_scaling,
+      normalize_observations=sac_params.normalize_observations,
+      action_repeat=sac_params.action_repeat,
+      discounting=sac_params.discounting,
+      learning_rate=sac_params.learning_rate,
+      tau=sac_params.tau,
+      min_replay_size=MIN_REPLAY_SIZE,
+      max_replay_size=MAX_REPLAY_SIZE,
+      grad_updates_per_step=sac_params.grad_updates_per_step,
+      progress_fn=progress_fn,
+      network_factory=network_factory,
+      checkpoint_logdir=str(ckpt_path / 'rsr'),
+      wrap_env_fn=wrapper.wrap_for_brax_training,
+      eval_env=eval_env,
+      seed=SEED,
+  )
 
-print(f'RSR {ALGORITHM.upper()} training finished.')
-print(f'checkpoints: {ckpt_path}')
-print(f'plots: {plot_dir}')
+  print(f'RSR {ALGORITHM.upper()} training finished.')
+  print(f'checkpoints: {ckpt_path}')
+  print(f'plots: {plot_dir}')
+  return make_inference_fn, params
+
+
+if __name__ == '__main__':
+  main()

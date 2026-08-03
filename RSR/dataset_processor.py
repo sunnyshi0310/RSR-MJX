@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+from jax.scipy.special import logsumexp
 from brax.envs.base import Env, PipelineEnv, State
 from datetime import datetime
 from etils import epath
@@ -25,10 +26,13 @@ def evaluate_kde(data, grid, bandwidth=0.1):
       """
       samples = grid
       diffs = jnp.expand_dims(samples, axis=1) - jnp.expand_dims(data, axis=0)  # (M, N, D)
-      kernel_vals = jnp.exp(-jnp.sum(diffs**2, axis=-1) / (2 * bandwidth**2))  # (M, N)
-      pdf = jnp.mean(kernel_vals, axis=-1)  # Average over data points (M,)
+      log_kernel_vals = -jnp.sum(diffs**2, axis=-1) / (2 * bandwidth**2)  # (M, N)
+      log_pdf = logsumexp(log_kernel_vals, axis=-1) - jnp.log(data.shape[0])
 
-      return pdf / jnp.sum(pdf)  # Normalize to form a valid probability distribution
+      # softmax performs the normalization in log space.  The previous direct
+      # exponentiation underflowed to all zeros for the high-dimensional RSR
+      # transition vectors and produced NaNs.
+      return jax.nn.softmax(log_pdf)
 
 def kl_divergence(p, q):
     """Compute KL divergence between two discrete distributions."""

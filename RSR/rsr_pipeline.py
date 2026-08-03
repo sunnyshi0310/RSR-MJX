@@ -27,6 +27,7 @@ from brax.mjx.base import State as MjxState
 from brax.io import html, mjcf, model
 from brax.training.agents.ppo import train as ppo
 from brax.training.agents.ppo import networks as ppo_networks
+from brax.training.agents.sac import networks as sac_networks
 
 # Flax related
 from flax import struct
@@ -34,7 +35,8 @@ from flax.training import orbax_utils
 from orbax import checkpoint as ocp
 
 # Dataset processing and training
-import RSR.dataset_processor as dp
+import RSR.rsr_loss as rsr_loss
+import RSR.sac_train as rsr_sac
 import RSR.train as rsr_ppo
 
 # MuJoCo
@@ -204,89 +206,231 @@ def env_params_tuning(
     return tuned_env_params, train_log
 
 # policy params tuning
+def build_policy_rsr_data(
+        past_states: Any,
+        past_actions: Any,
+        past_next_states_real: Any,
+        past_next_states_sim: Any,
+        current_next_states_sim: Any,
+        num_samples: int = 10,
+        min_val: float = -3.0,
+        max_val: float = 3.0,
+        bandwidth: float = 0.1,
+        seed: int = 0,
+        ) -> rsr_loss.RSRData:
+    """Builds the fixed RSR statistics shared by PPO and SAC."""
+    arrays = tuple(jnp.asarray(value) for value in (
+        past_states,
+        past_actions,
+        past_next_states_real,
+        past_next_states_sim,
+        current_next_states_sim,
+    ))
+    (
+        past_states,
+        past_actions,
+        past_next_states_real,
+        past_next_states_sim,
+        current_next_states_sim,
+    ) = arrays
+
+    if any(value.ndim != 2 for value in arrays):
+        shapes = tuple(value.shape for value in arrays)
+        raise ValueError(f'all RSR datasets must be rank 2, got {shapes}')
+    sample_counts = {value.shape[0] for value in arrays}
+    if len(sample_counts) != 1:
+        shapes = tuple(value.shape for value in arrays)
+        raise ValueError(f'RSR datasets must have equal lengths, got {shapes}')
+    if not sample_counts or next(iter(sample_counts)) == 0:
+        raise ValueError('RSR datasets must not be empty')
+    if past_next_states_real.shape[1] != past_states.shape[1]:
+        raise ValueError('real next-state width must match state width')
+    if past_next_states_sim.shape[1] != past_states.shape[1]:
+        raise ValueError('previous sim next-state width must match state width')
+    if current_next_states_sim.shape[1] != past_states.shape[1]:
+        raise ValueError('current sim next-state width must match state width')
+
+    real_data = jnp.hstack(
+        [past_states, past_actions, past_next_states_real]
+    )
+    previous_sim_data = jnp.hstack(
+        [past_states, past_actions, past_next_states_sim]
+    )
+    current_sim_data = jnp.hstack(
+        [past_states, past_actions, current_next_states_sim]
+    )
+    return rsr_loss.build_rsr_data(
+        real_data,
+        previous_sim_data,
+        current_sim_data,
+        num_samples=num_samples,
+        min_value=min_val,
+        max_value=max_val,
+        bandwidth=bandwidth,
+        seed=seed,
+    )
+
+
 def policy_params_training(
-        env: Env, restore_checkpoint_path, policy_params_fn, network_factory, progress_fn,
-        past_states: jnp.array, past_actions: jnp.array, 
-        past_next_states_real: jnp.array, past_next_states_sim: jnp.array, current_next_states_sim: jnp.array,
-        num_samples: int =10, min_val: int =-3, max_val: int =3, bandwidth: float = 0.1,
-        num_timesteps: int=5_000_000, 
-        num_evals:int=10, 
-        reward_scaling:float=0.1, 
-        episode_length:int=1200, 
-        normalize_observations:bool=True, 
-        action_repeat:int =1, 
-        unroll_length:int =10, 
-        num_minibatches:int =32, 
-        num_updates_per_batch:int =8, 
-        discounting:float=0.96, 
-        learning_rate:float =1e-4, 
-        entropy_cost:float =2e-2, 
-        num_envs:int =512, 
-        batch_size: int =128, 
-        seed: int=0):
-    """
-    training policy with ppo_rsr loss
+        env: Env,
+        restore_checkpoint_path: Optional[str] = None,
+        policy_params_fn: Optional[Callable[..., None]] = None,
+        network_factory: Optional[Callable[..., Any]] = None,
+        progress_fn: Optional[Callable[..., None]] = None,
+        past_states: Any = None,
+        past_actions: Any = None,
+        past_next_states_real: Any = None,
+        past_next_states_sim: Any = None,
+        current_next_states_sim: Any = None,
+        algorithm: str = 'ppo',
+        num_samples: int = 10,
+        min_val: float = -3.0,
+        max_val: float = 3.0,
+        bandwidth: float = 0.1,
+        rsr_loss_scale: float = 1.0,
+        num_timesteps: int = 5_000_000,
+        num_evals: int = 10,
+        reward_scaling: float = 0.1,
+        episode_length: int = 1200,
+        normalize_observations: bool = True,
+        action_repeat: int = 1,
+        discounting: float = 0.96,
+        learning_rate: float = 1e-4,
+        num_envs: int = 512,
+        batch_size: int = 128,
+        seed: int = 0,
+        num_eval_envs: int = 128,
+        deterministic_eval: bool = False,
+        max_devices_per_host: Optional[int] = None,
+        # PPO-specific options.
+        unroll_length: int = 10,
+        num_minibatches: int = 32,
+        num_updates_per_batch: int = 8,
+        entropy_cost: float = 2e-2,
+        num_resets_per_eval: int = 0,
+        # SAC-specific options.
+        tau: float = 0.005,
+        min_replay_size: int = 0,
+        max_replay_size: Optional[int] = None,
+        grad_updates_per_step: int = 1,
+        checkpoint_logdir: Optional[str] = None,
+        wrap_env_fn: Optional[Callable[..., Any]] = None,
+        eval_env: Optional[Env] = None,
+        ):
+    """Trains an RSR policy with either Brax PPO or Brax SAC.
 
     Args:
-    env:
-    init_policy_params:
+        algorithm: ``"ppo"`` (default) or ``"sac"``.
+        restore_checkpoint_path: PPO Orbax checkpoint.  Brax 0.12.1 SAC does
+          not support restoring optimizer/replay state.
+        policy_params_fn: PPO checkpoint callback.  SAC uses
+          ``checkpoint_logdir`` instead.
+        checkpoint_logdir: SAC checkpoint file prefix.  Brax writes files as
+          ``<prefix>_sac_<step>.pkl``.
 
     Returns:
-    make_interfernce_fn:
-    tuned_policy_params:
+        ``(make_inference_fn, tuned_policy_params)`` using the native parameter
+        format of the selected Brax algorithm.
     """
-    
-    len_dataset = len(past_states)
+    if rsr_loss_scale < 0:
+        raise ValueError(
+            f'rsr_loss_scale must be non-negative, got {rsr_loss_scale}'
+        )
+    required_datasets = (
+        past_states,
+        past_actions,
+        past_next_states_real,
+        past_next_states_sim,
+        current_next_states_sim,
+    )
+    if any(value is None for value in required_datasets):
+        raise ValueError('all five RSR policy datasets are required')
 
-    # D^{k}_{real}
-    D1 = jnp.hstack([past_states, past_actions, past_next_states_real])
+    past_data = build_policy_rsr_data(
+        past_states,
+        past_actions,
+        past_next_states_real,
+        past_next_states_sim,
+        current_next_states_sim,
+        num_samples=num_samples,
+        min_val=min_val,
+        max_val=max_val,
+        bandwidth=bandwidth,
+        seed=seed,
+    )
+    progress_fn = progress_fn or (lambda *args: None)
+    algorithm = algorithm.strip().lower()
 
-    # D^{k-1}_{sim}
-    D2 = jnp.hstack([past_states, past_actions, past_next_states_sim])
+    if algorithm == 'ppo':
+        network_factory = network_factory or ppo_networks.make_ppo_networks
+        policy_params_fn = policy_params_fn or (lambda *args: None)
+        make_inference_fn, params, _ = rsr_ppo.train(
+            environment=env,
+            past_data=past_data,
+            num_timesteps=num_timesteps,
+            num_evals=num_evals,
+            num_eval_envs=num_eval_envs,
+            reward_scaling=reward_scaling,
+            episode_length=episode_length,
+            normalize_observations=normalize_observations,
+            action_repeat=action_repeat,
+            unroll_length=unroll_length,
+            num_minibatches=num_minibatches,
+            num_updates_per_batch=num_updates_per_batch,
+            discounting=discounting,
+            learning_rate=learning_rate,
+            entropy_cost=entropy_cost,
+            num_envs=num_envs,
+            batch_size=batch_size,
+            num_resets_per_eval=num_resets_per_eval,
+            restore_checkpoint_path=restore_checkpoint_path,
+            policy_params_fn=policy_params_fn,
+            network_factory=network_factory,
+            progress_fn=progress_fn,
+            deterministic_eval=deterministic_eval,
+            max_devices_per_host=max_devices_per_host,
+            rsr_loss_scale=rsr_loss_scale,
+            seed=seed,
+            eval_env=eval_env,
+        )
+        return make_inference_fn, params
 
-    # D^{k}_{sim}
-    D3 = jnp.hstack([past_states, past_actions, current_next_states_sim])
+    if algorithm == 'sac':
+        if restore_checkpoint_path:
+            raise ValueError(
+                'Brax 0.12.1 SAC cannot resume complete training state; use '
+                'checkpoint_logdir to save inference checkpoints instead'
+            )
+        make_inference_fn, params, _ = rsr_sac.train(
+            environment=env,
+            past_data=past_data,
+            num_timesteps=num_timesteps,
+            num_evals=num_evals,
+            num_eval_envs=num_eval_envs,
+            reward_scaling=reward_scaling,
+            episode_length=episode_length,
+            normalize_observations=normalize_observations,
+            action_repeat=action_repeat,
+            discounting=discounting,
+            learning_rate=learning_rate,
+            num_envs=num_envs,
+            batch_size=batch_size,
+            tau=tau,
+            min_replay_size=min_replay_size,
+            max_replay_size=max_replay_size,
+            grad_updates_per_step=grad_updates_per_step,
+            checkpoint_logdir=checkpoint_logdir,
+            network_factory=network_factory or sac_networks.make_sac_networks,
+            progress_fn=progress_fn,
+            deterministic_eval=deterministic_eval,
+            max_devices_per_host=max_devices_per_host,
+            rsr_loss_scale=rsr_loss_scale,
+            seed=seed,
+            wrap_env_fn=wrap_env_fn,
+            eval_env=eval_env,
+        )
+        return make_inference_fn, params
 
-    dim = len(D1[0])
-    grid = jax.random.uniform(jax.random.PRNGKey(0), (num_samples, dim), minval=min_val, maxval=max_val)
-
-    p_D1 = dp.evaluate_kde(D1, grid, bandwidth)
-    p_D2 = dp.evaluate_kde(D2, grid, bandwidth)
-    p_D3 = dp.evaluate_kde(D3, grid, bandwidth)
-
-    KLD = dp.kl_divergence(p_D1, p_D2)
-    past_data = (KLD, p_D3, D3) 
-    print("====== past_data calculated =======")
-    
-
-
-    train_fn = functools.partial(
-        rsr_ppo.train, 
-        num_timesteps=num_timesteps, 
-        num_evals=num_evals, 
-        reward_scaling=reward_scaling, 
-        episode_length=episode_length, 
-        normalize_observations=normalize_observations, 
-        action_repeat=action_repeat, 
-        unroll_length=unroll_length, 
-        num_minibatches=num_minibatches, 
-        num_updates_per_batch=num_updates_per_batch, 
-        discounting=discounting, 
-        learning_rate=learning_rate, 
-        entropy_cost=entropy_cost, 
-        num_envs=num_envs, 
-        batch_size=batch_size, 
-        restore_checkpoint_path=restore_checkpoint_path,
-        policy_params_fn=policy_params_fn,
-        network_factory=network_factory,
-        seed=0)
-
-
-    make_inference_fn, params, _ = train_fn(
-        environment=env, 
-        past_data=past_data, 
-        progress_fn=progress_fn)
-    
-    tuned_policy_params = params
-
-    return make_inference_fn, tuned_policy_params
+    raise ValueError(
+        f'unsupported algorithm {algorithm!r}; expected "ppo" or "sac"'
+    )

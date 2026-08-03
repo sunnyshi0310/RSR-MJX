@@ -1,6 +1,7 @@
 """Wrappers for MuJoCo Playground environments."""
 import functools
-from typing import Any, Callable, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any, Callable, Optional, Tuple, Union
 from brax.envs.wrappers import training as brax_training
 import jax
 from jax import numpy as jp
@@ -71,6 +72,48 @@ def wrap_for_brax_training(
   env = brax_training.EpisodeWrapper(env, episode_length, action_repeat)
   env = BraxAutoResetWrapper(env)
   return env
+
+
+class SelectObservationWrapper(Wrapper):
+  """Selects one observation key for algorithms that require vector observations.
+
+  Brax SAC only supports vector observations, while many locomotion tasks expose
+  a dictionary with keys such as ``state`` and ``privileged_state``.
+  """
+
+  def __init__(self, env: mjx_env.MjxEnv, obs_key: str = "state"):
+    super().__init__(env)
+    self._obs_key = obs_key
+
+  def _select_obs(self, obs: Any) -> jax.Array:
+    if isinstance(obs, Mapping):
+      if self._obs_key not in obs:
+        raise KeyError(
+            f"Observation key '{self._obs_key}' not found in env observation: "
+            f"{list(obs.keys())}"
+        )
+      return obs[self._obs_key]
+    return obs
+
+  def reset(self, rng: jax.Array) -> mjx_env.State:
+    state = self.env.reset(rng)
+    return state.replace(obs=self._select_obs(state.obs))
+
+  def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
+    state = self.env.step(state, action)
+    return state.replace(obs=self._select_obs(state.obs))
+
+  @property
+  def observation_size(self) -> Union[int, mjx_env.ObservationSize]:
+    size = self.env.observation_size
+    if isinstance(size, Mapping):
+      key_shape = size[self._obs_key]
+      if not key_shape:
+        return 1
+      return int(key_shape[-1])
+    return size
+
+
 class BraxAutoResetWrapper(Wrapper):
   """Automatically resets Brax envs that are done."""
   def reset(self, rng: jax.Array) -> mjx_env.State:
