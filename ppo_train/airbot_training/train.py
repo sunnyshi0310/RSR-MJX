@@ -10,14 +10,19 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 import imageio
 from cube_env import AirbotPlayBase
+from domain_randomize import domain_randomize
 from jax import config
 # config.update("jax_debug_nans", True)
 # jax.config.update('jax_default_matmul_precision',jax.lax.Precision.HIGH)
 
+DOMAIN_RANDOMIZATION = True
+
 envs.register_environment('airbot', AirbotPlayBase)
 env_name = 'airbot'
 env = envs.get_environment(env_name)
+eval_env = envs.get_environment(env_name)
 print(env.dt)
+print(f'domain_randomization={DOMAIN_RANDOMIZATION}')
 make_networks_factory = functools.partial(
     ppo_networks.make_ppo_networks,
         policy_hidden_layer_sizes=(32, 32, 32, 32))
@@ -46,6 +51,7 @@ train_fn = functools.partial(
     network_factory=make_networks_factory, 
     policy_params_fn=policy_params_fn,
     restore_checkpoint_path=ckpt_path_restart,
+    randomization_fn=domain_randomize if DOMAIN_RANDOMIZATION else None,
     seed=0)
 
 x_data = []
@@ -72,7 +78,8 @@ def progress(num_steps, metrics):
   filename = f'path/to/your/img_folder/push_{num_steps}.png'
   plt.savefig(filename)
 
-make_inference_fn, params, _= train_fn(environment=env, progress_fn=progress)
+make_inference_fn, params, _= train_fn(
+    environment=env, progress_fn=progress, eval_env=eval_env)
 
 
 

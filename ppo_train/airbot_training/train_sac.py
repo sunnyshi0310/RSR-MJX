@@ -12,6 +12,9 @@ import imageio
 import jax
 
 from cube_env import AirbotPlayBase
+from domain_randomize import domain_randomize
+
+DOMAIN_RANDOMIZATION = True
 
 OUTPUT_DIR = Path(__file__).resolve().parent / 'outputs'
 CHECKPOINT_PREFIX = OUTPUT_DIR / 'checkpoints' / 'airbot_sac'
@@ -23,14 +26,14 @@ for path in (CHECKPOINT_PREFIX.parent, MODEL_PATH.parent, VIDEO_PATH.parent):
 
 envs.register_environment('airbot_sac', AirbotPlayBase)
 env = envs.get_environment('airbot_sac')
+eval_env = envs.get_environment('airbot_sac')
+print(f'domain_randomization={DOMAIN_RANDOMIZATION}')
 
 network_factory = functools.partial(
     sac_networks.make_sac_networks,
     hidden_layer_sizes=(256, 256),
 )
 
-# Brax 0.12.1 treats checkpoint_logdir as a filename prefix and writes
-# ``<prefix>_sac_<step>.pkl``.
 train_fn = functools.partial(
     sac.train,
     num_timesteps=500_000,
@@ -48,6 +51,7 @@ train_fn = functools.partial(
     grad_updates_per_step=1,
     network_factory=network_factory,
     checkpoint_logdir=str(CHECKPOINT_PREFIX),
+    randomization_fn=domain_randomize if DOMAIN_RANDOMIZATION else None,
     seed=0,
 )
 
@@ -63,6 +67,7 @@ def progress(num_steps, metrics):
 make_inference_fn, params, _ = train_fn(
     environment=env,
     progress_fn=progress,
+    eval_env=eval_env,
 )
 
 print(f'time to jit: {times[1] - times[0]}')

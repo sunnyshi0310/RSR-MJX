@@ -11,8 +11,6 @@ import numpy as np
 import tqdm
 
 ROOT_PATH = epath.Path(__file__).parent
-# Go2 assets are bundled under ``locomotion/go2/xmls`` and do not require
-# downloading ``mujoco_menagerie``.
 EXTERNAL_DEPS_PATH = epath.Path(__file__).parent.parent / "external_deps"
 MENAGERIE_PATH = EXTERNAL_DEPS_PATH / "mujoco_menagerie"
 
